@@ -1,0 +1,21 @@
+{
+  "name": "auth-server",
+  "version": "1.0.0",
+  "description": " Auth server using telegram eb hook",
+  "main": "server.js",
+  "scripts": {
+    "test": "node data.js",
+    "start": "node server.js",
+    "bot": "node bot.js"
+  },
+  "author": "Rhythm113",
+  "license": "MIT",
+  "dependencies": {
+    "body-parser": "^1.20.0",
+    "crypto-js": "^4.1.1",
+    "express": "^4.18.1",
+    "node-json-db": "^1.5.0",
+    "nodemon": "^2.0.16",
+    "telegraf": "^4.8.2"
+  }
+}
