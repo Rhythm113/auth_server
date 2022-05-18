@@ -2,16 +2,17 @@ var express = require('express');
 const { Telegraf, Markup } = require('telegraf')
 const { JsonDB } = require('node-json-db');
 const { Config } = require('node-json-db/dist/lib/JsonDBConfig');
-var db = new JsonDB(new Config("api_data", true, false, '/'));
-var db2 = new JsonDB(new Config("users", true, false, '/'));
+var db = new JsonDB(new Config("api_data", true, true, '/'));
+var db2 = new JsonDB(new Config("users", true, true, '/'));
 const app = express()
 var CryptoJS = require("crypto-js");
+const res = require('express/lib/response');
 
 //ENCRYPTION PART
 
 const key = "PeShVmYq3t6w9z$B";
-const iv = "UkXp2s5v8y/B?E(H";
-var limit_api = Number('10000');
+//const iv = "UkXp2s5v8y/B?E(H";
+var limit_api = Number('20');
 
 //Configs 
 const bot = new Telegraf("5390079950:AAFBvuCd9zR6aiXt7aT2o3WXfpd5pC7-Lfk");
@@ -37,21 +38,22 @@ function dec(text) {
 
 //add calls 
 function addAPICount(user_api_key) {
-  var count = Number(db.getData(`/${user_api_key}/api/api_calls`))
-  var limits = Number(db.getData(`/${user_api_key}/api/limit`))
-  var usr = Number(db.getData(`/${user_api_key}/api/user`))
-  count = count + 1
-  db.push(`/${user_api_key}/api`, { api_calls: count, limit: limits, user: usr })
+  /*Params :
+  api_calls , limit , user , appid
+ */
+  var jsond = db.getData(`/main/${user_api_key}/api/`)
+  jsond.api_calls = Number(jsond.api_calls) + 1
+  db.push(`/main/${user_api_key}/api`, jsond)
   console.log("ADD COUNT OK ")
-  if (count == limits || count > limits) {
+  if (jsond.api_calls == jsond.limit || jsond.api_calls > jsond.limit) {
     return false;
   }
   return true;
 }
 //Error handler
 function error(status, msg) {
-  /*var err = new Error(msg);
-  err.status = status;*/
+  var err = new Error(msg);
+  err.status = status;
   return `{"error" : "${msg}"}`;
 }
 //Key gen
@@ -86,6 +88,14 @@ function GeenarateString(id) {
 }
 
 //Register an user with API 
+/**
+ * Datasets : 
+ * /main/users/TG_UID/ (API KEY WILL BE Stored here) {key:keyi,vip:false}
+ * /API_KEY/api { api_calls: "0", limit: limit_api, user: userid, appid : 0 }
+ * /APP_ID/users/ {"user" : "U2FsdGVkX18IZzIsMqv+IHl9C6EkajZhb2NPANlqsXk=","time":"3000",tel:telid}
+ */
+
+
 function addUser(userid, apiKey) {
   try {
     var chk = db.getData(`/main/users/${userid}`);
@@ -93,16 +103,36 @@ function addUser(userid, apiKey) {
     console.log('data error')
   }
   if (typeof chk == 'undefined') {
-    db.push(`/main/users/${userid}`, { exists: 'true' })
-    db.push(`/${apiKey}/api/`, { api_calls: "0", limit: limit_api, user: userid });
-    db2.push(`/${apiKey}/users/dummy`, { called: true })
+    db.push(`/main/users/${userid}`, { key: apiKey , vip:false})
+    db.push(`/miain/${apiKey}/api/`, { api_calls: "0", limit: limit_api, user: userid, appid: 0 });
+    //db2.push(`/${apiKey}/users/dummy`, { called: true })
     return apiKey;
   } else {
     return "false"
   }
 }
 
+//Create an APP 
+function CreateAPP(apiKey,telID,isVIP){
+  var AppID = otpgen(16)
+  try{var OldData = db.getData(`/${apiKey}/api/`)} catch(err){return 'error'}
+  if(typeof OldData == 'undefined'){return ' error'}
+  if(Number(OldData.appid) > 0 && !isVIP){return 'duplicate'}else{
+  OldData.appid = Number(AppID);
+  try{db.push(`/mian/${apiKey}/api/`,OldData)}catch(err){return 'error'}
+  try{db2.push(`/mian/${AppID}/users/`,{user:GeenarateString(telID),time:'999999',tel:Number(telID)})}catch(err){return 'error'}
+  return 'done';
+}
+}
+
 //-----------------BOT------------------------------------------------------------
+
+/**
+bot.command('mykey', ctx => {
+if (ctx.chat.id == '-1001613498889') { bot.telegram.sendMessage(ctx.chat.id, "This Action not allowed here !", {}) }
+else {}})
+*/
+
 bot.command('start', ctx => {
   bot.telegram.sendMessage(ctx.chat.id, "Hi welcome to Auth Server by infinity Creators ! Type /help for available options ", {
   })
@@ -117,7 +147,7 @@ bot.command('id', ctx => {
 
 //help
 bot.command('help', ctx => {
-  bot.telegram.sendMessage(ctx.chat.id, "List of Available commands :\n/id --Recieve Current Chat ID \n/login --To login as a Client\n/register --To register as a client \n/generate --Session generator (Use this to get temp key to register with your required app", {
+  bot.telegram.sendMessage(ctx.chat.id, "List of Available commands :\n/id --Recieve Current Chat ID \n/mykey --To show your API Key\n/register --To register as a client \n/generate --Session generator (Use this to get temp key to register with your required app", {
   })
 })
 
@@ -125,18 +155,37 @@ bot.command('help', ctx => {
 bot.command('register', ctx => {
   if (ctx.chat.id == '-1001613498889') { bot.telegram.sendMessage(ctx.chat.id, "This Action not allowed here !", {}) }
   else {
-    var key = addUser(ctx.chat.id, keygen(16));
+    var key = addUser(ctx.chat.id, keygen(32));
     if (key == 'false') {
       bot.telegram.sendMessage(ctx.chat.id, `User already registered !`, {
       })
     } else {
-      bot.telegram.sendMessage(ctx.chat.id, `User added to Database Sucessfully !`, {
+      bot.telegram.sendMessage(ctx.chat.id, `User added to Database Sucessfully ! Welcome to the AUTH System. Create an app to continue.`, {
       })
       bot.telegram.sendMessage(ctx.chat.id, `API Key : ${key}\nCalls Left : ${limit_api}`, {})
     }
   }
 })
 
+//mykey
+bot.command('mykey', ctx => {
+  if (ctx.chat.id == '-1001613498889') { bot.telegram.sendMessage(ctx.chat.id, "This Action not allowed here !", {}) }
+  else {
+    try {
+      var key = db.getData(`/main/users/${ctx.chat.id}/`)
+    } catch (err) {
+      console.log('Fucker here bruhh..')
+    }
+    if (typeof key == 'undefined') {
+      bot.telegram.sendMessage(ctx.chat.id, "OPS ! You are not registered yet :) ", {})
+    } else {
+      bot.telegram.sendMessage(ctx.chat.id, `Your API Key : ${key.key}`, {})
+    }
+  }
+})
+
+
+/*
 //LOgin
 bot.command('login', ctx => {
   if (ctx.chat.id == '-1001613498889') { bot.telegram.sendMessage(ctx.chat.id, "This Action not allowed here !", {}) }
@@ -145,8 +194,10 @@ bot.command('login', ctx => {
     })
     bot.telegram.sendMessage(ctx.chat.id, `Example : login:CWaHrHctROoGlIMX`, {})
   }
-})
+})*/
 
+
+//generate
 bot.command('generate', ctx => {
   if (ctx.chat.id == '-1001613498889') { bot.telegram.sendMessage(ctx.chat.id, "This Action not allowed here !", {}) }
   else {
@@ -157,16 +208,22 @@ bot.command('generate', ctx => {
   }
 })
 
+//newapp
+bot.command('newapp', ctx => {
+  if (ctx.chat.id == '-1001613498889') { bot.telegram.sendMessage(ctx.chat.id, "This Action not allowed here !", {}) }
+  else {
+  }})
+
 //Filters
 bot.on('message', (ctx) => {
   if (typeof ctx.message.text == 'undefined') {
     console.log("Bruh")
   } else {
-    if (ctx.message.text.includes('login:')) {
+    /*if (ctx.message.text.includes('login:')) {
       var data = ctx.message.text.replace('login:', '')
       bot.telegram.sendMessage(ctx.chat.id, "Coming Soon.!", {
       })
-    }
+    }*/
     if (ctx.message.text.includes('an:') && ctx.chat.id == Number('695274605')) {
       maiinGRP = '-1001613498889';
       var data2 = ctx.message.text.replace('an:', '')
@@ -232,7 +289,7 @@ app.get('/api', (req, res, next) => {
       console.log(raw)
       keuu = dec(raw.user)
       try {
-        db2.push(`/${user_key}/users/${raw.user}`, { tel: keuu, time: raw.time, otp: 0 })
+        db2.push(`/mian/${user_key}/users/${raw.user}`, { tel: keuu, time: raw.time, otp: 0 })
         res.send("User Added Successfully..")
       } catch (err) {
         console.log(err)
@@ -248,7 +305,7 @@ app.get('/api', (req, res, next) => {
     var todel = atob(only_user);
     console.log(todel)
     try {
-      db2.delete(`/${user_key}/users/${todel}`)
+      db2.delete(`/mian/${user_key}/users/${todel}`)
       res.send('User Deleted')
     } catch (err) {
       res.send('Delete Failed')
@@ -261,12 +318,12 @@ app.get('/api', (req, res, next) => {
     try {
       fetch_data = db2.getData(`/${user_key}/users/${input_key}`);
     } catch (err) {
-      res.send('500');
+      res.send('Invalid key');
     }
     if (typeof fetch_data == 'undefined') { next(error(400, 'User Not Found')) }
     else {
       var num = otpgen(6);
-      db2.push(`/${user_key}/users/${input_key}`, { tel: fetch_data.tel, time: fetch_data.time, otp: Number(num) })
+      db2.push(`/mian/${user_key}/users/${input_key}`, { tel: fetch_data.tel, time: fetch_data.time, otp: Number(num) })
       bot.telegram.sendMessage(fetch_data.tel, `Your OTP is : ${num}. `, {
       })
       res.send('OTP sent OK')
@@ -278,14 +335,14 @@ app.get('/api', (req, res, next) => {
     var input_key = atob(only_user)
     if (!ootp) return next(error(400, 'OTP is Missing'));
     try {
-      fetch_data = db2.getData(`/${user_key}/users/${input_key}`);
+      fetch_data = db2.getData(`/mian/${user_key}/users/${input_key}`);
     } catch (err) {
       res.send('500');
     }
     if (typeof fetch_data == 'undefined') { next(error(400, 'User Not Found')) }
     else {
       if (fetch_data.otp == ootp) {
-        db2.push(`/${user_key}/users/${input_key}`, { tel: fetch_data.tel, time: fetch_data.time, otp: 0 })
+        db2.push(`/mian/${user_key}/users/${input_key}`, { tel: fetch_data.tel, time: fetch_data.time, otp: 0 })
         res.send('{"status":"true"}')
       } else {
         res.send('{"status":"false"}')
@@ -296,7 +353,7 @@ app.get('/api', (req, res, next) => {
 
 })
 
-app.listen(3000);
+app.listen(process.env.PORT || 3000);
 console.log('Express started on port 3000');
 
 
