@@ -4,7 +4,6 @@
   "description": " Auth server using telegram eb hook",
   "main": "server.js",
   "scripts": {
-    "test": "node data.js",
     "start": "node server.js",
     "bot": "node bot.js"
   },
