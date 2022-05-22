@@ -1,3 +1,8 @@
+
+
+//Copyright @Rhythm113
+
+
 var express = require('express');
 const { Telegraf, Markup } = require('telegraf')
 const { JsonDB } = require('node-json-db');
